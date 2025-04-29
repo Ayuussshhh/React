@@ -1,0 +1,890 @@
+'use client';
+import { useState, useMemo } from 'react';
+import {
+  Box,
+  Typography,
+  Paper,
+  Chip,
+  Divider,
+  Button,
+  Snackbar,
+  Alert,
+  Stack,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText, // Added this import
+  DialogActions,
+  IconButton,
+  Tooltip,
+  LinearProgress,
+  styled,
+  AppBar,
+  Toolbar,
+  InputBase,
+  Avatar,
+  useTheme,
+  useMediaQuery,
+} from '@mui/material';
+import { DataGrid, GridToolbarContainer, GridToolbarColumnsButton, GridToolbarFilterButton } from '@mui/x-data-grid';
+import { PieChart } from '@mui/x-charts/PieChart';
+import {
+  Search as SearchIcon,
+  Notifications as NotificationsIcon,
+  Refresh,
+  Delete,
+  Replay as RetryIcon,
+  CheckCircle as CheckCircleIcon,
+  Pending as PendingIcon,
+} from '@mui/icons-material';
+
+// Styled Components
+const StyledPaper = styled(Paper)(({ theme }) => ({
+  padding: theme.spacing(3),
+  borderRadius: 12,
+  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.06)',
+  background: theme.palette.background.paper,
+  border: `1px solid ${theme.palette.grey[200]}`,
+  transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+  '&:hover': {
+    transform: 'translateY(-2px)',
+    boxShadow: '0 6px 16px rgba(0, 0, 0, 0.08)',
+  },
+  [theme.breakpoints.down('sm')]: {
+    padding: theme.spacing(2),
+  },
+}));
+
+const StyledAppBar = styled(AppBar)(({ theme }) => ({
+  background: theme.palette.background.paper,
+  boxShadow: '0 2px 6px rgba(0, 0, 0, 0.04)',
+  borderBottom: `1px solid ${theme.palette.grey[200]}`,
+}));
+
+const SearchBar = styled('div')(({ theme }) => ({
+  position: 'relative',
+  borderRadius: 8,
+  backgroundColor: theme.palette.grey[100],
+  marginRight: theme.spacing(2),
+  marginLeft: theme.spacing(2),
+  width: 'auto',
+  transition: 'background-color 0.2s ease',
+  '&:hover': {
+    backgroundColor: theme.palette.grey[200],
+  },
+  [theme.breakpoints.up('sm')]: {
+    width: '350px',
+  },
+}));
+
+const SearchIconWrapper = styled('div')(({ theme }) => ({
+  padding: theme.spacing(0, 2),
+  height: '100%',
+  position: 'absolute',
+  pointerEvents: 'none',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  color: theme.palette.grey[500],
+}));
+
+const StyledInputBase = styled(InputBase)(({ theme }) => ({
+  color: theme.palette.text.primary,
+  width: '100%',
+  '& .MuiInputBase-input': {
+    padding: theme.spacing(1, 1, 1, 0),
+    paddingLeft: `calc(1em + ${theme.spacing(4)})`,
+    transition: theme.transitions.create(['width', 'background-color']),
+    width: '100%',
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    '&:focus': {
+      backgroundColor: theme.palette.grey[50],
+    },
+  },
+}));
+
+const StyledDataGrid = styled(DataGrid)(({ theme }) => ({
+  border: 'none',
+  background: theme.palette.background.paper,
+  borderRadius: 8,
+  border: `1px solid ${theme.palette.grey[200]}`,
+  '& .MuiDataGrid-columnHeaders': {
+    background: theme.palette.grey[50],
+    borderBottom: `1px solid ${theme.palette.grey[200]}`,
+    '& .MuiDataGrid-columnHeaderTitle': {
+      fontWeight: 600,
+      color: theme.palette.text.secondary,
+      fontSize: '0.85rem',
+      letterSpacing: '0.25px',
+    },
+  },
+  '& .MuiDataGrid-row': {
+    transition: 'background 0.2s ease',
+    '&:hover': {
+      background: theme.palette.grey[50],
+    },
+  },
+  '& .MuiDataGrid-cell': {
+    borderBottom: `1px solid ${theme.palette.grey[100]}`,
+    padding: theme.spacing(1.5),
+    fontSize: '0.85rem',
+    color: theme.palette.text.primary,
+    fontWeight: 500,
+  },
+  '& .MuiDataGrid-footerContainer': {
+    background: theme.palette.grey[50],
+    borderTop: `1px solid ${theme.palette.grey[200]}`,
+  },
+  [theme.breakpoints.down('sm')]: {
+    '& .MuiDataGrid-cell': {
+      padding: theme.spacing(1),
+      fontSize: '0.75rem',
+    },
+  },
+}));
+
+const ActionButton = styled(IconButton)(({ theme }) => ({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: theme.spacing(0.5),
+  transition: 'transform 0.2s ease-in-out, color 0.2s ease-in-out',
+  '&:hover': {
+    transform: 'scale(1.15)',
+    color: theme.palette.primary.dark,
+  },
+  '& .MuiSvgIcon-root': {
+    fontSize: '1.4rem',
+  },
+}));
+
+const StatusChip = styled(Chip)(({ theme }) => ({
+  borderRadius: 6,
+  fontWeight: 600,
+  fontSize: '0.75rem',
+  padding: theme.spacing(0.5, 1.5),
+  backgroundColor: theme.palette.grey[100],
+  color: theme.palette.text.primary,
+  border: `1px solid ${theme.palette.grey[300]}`,
+  transition: 'background 0.2s ease, transform 0.2s ease',
+  '&:hover': {
+    backgroundColor: theme.palette.grey[200],
+    transform: 'scale(1.05)',
+  },
+  '& .MuiChip-icon': {
+    marginRight: theme.spacing(1),
+    fontSize: '1.1rem',
+  },
+}));
+
+const CustomToolbar = () => (
+  <GridToolbarContainer sx={{ p: 1, background: 'inherit', borderBottom: `1px solid ${useTheme().palette.grey[200]}` }}>
+    <GridToolbarColumnsButton sx={{ fontSize: '0.75rem', fontWeight: 600, borderRadius: 6, px: 2, py: 0.5, color: useTheme().palette.text.secondary }} />
+    <GridToolbarFilterButton sx={{ fontSize: '0.75rem', fontWeight: 600, borderRadius: 6, px: 2, py: 0.5, color: useTheme().palette.text.secondary }} />
+  </GridToolbarContainer>
+);
+
+const ApiLogsDashboard = () => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
+  const [rows, setRows] = useState([
+    {
+      id: 1,
+      LogId: 101,
+      CreateDate: '2025-04-28',
+      ObjectType: 'Order',
+      DocEntry: 1234,
+      Status: 'Success',
+      CreatedBy: 'Admin',
+      Method: 'POST',
+      SuccessDocEntries: [1234],
+      PendingDocEntries: [],
+      Response: '{"message":"Success"}',
+    },
+    {
+      id: 2,
+      LogId: 102,
+      CreateDate: '2025-04-29',
+      ObjectType: 'Invoice',
+      DocEntry: 5678,
+      Status: 'Pending',
+      CreatedBy: 'User1',
+      Method: 'GET',
+      SuccessDocEntries: [],
+      PendingDocEntries: [5678],
+      Response: '{"error":"Timeout due to session over"}',
+      ApiEndpoint: 'https://api.example.com/invoice',
+      Payload: JSON.stringify({
+        docEntry: 5678,
+        method: 'GET',
+        details: {
+          user: 'User1',
+          timestamp: '2025-04-29T10:00:00Z',
+          invoiceData: {
+            id: 5678,
+            amount: 1500.75,
+            currency: 'USD',
+            items: [
+              { id: 1, name: 'Product A', quantity: 2, price: 500.25 },
+              { id: 2, name: 'Product B', quantity: 1, price: 500.25 },
+            ],
+          },
+        },
+      }, null, 2),
+    },
+    {
+      id: 3,
+      LogId: 103,
+      CreateDate: '2025-04-29',
+      ObjectType: 'Order',
+      DocEntry: 3456,
+      Status: 'Success',
+      CreatedBy: 'Admin',
+      Method: 'PUT',
+      SuccessDocEntries: [3456],
+      PendingDocEntries: [],
+      Response: '{"message":"Success"}',
+    },
+  ]);
+
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [detailsDialog, setDetailsDialog] = useState(false);
+  const [selectedLog, setSelectedLog] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [filteredRows, setFilteredRows] = useState(rows);
+
+  // Calculate counts and percentages for each status
+  const statusCounts = useMemo(() => {
+    const total = rows.length;
+    const successCount = rows.filter((row) => row.Status === 'Success').length;
+    const pendingCount = rows.filter((row) => row.Status === 'Pending').length;
+    const successPercentage = total > 0 ? Math.round((successCount / total) * 100) : 0;
+    const pendingPercentage = total > 0 ? Math.round((pendingCount / total) * 100) : 0;
+
+    return [
+      { name: 'Success', value: successCount, percentage: successPercentage },
+      { name: 'Pending', value: pendingCount, percentage: pendingPercentage },
+    ];
+  }, [rows]);
+
+  // Define pieChartData based on statusCounts
+  const pieChartData = useMemo(() => {
+    return statusCounts.map((status, index) => ({
+      id: index,
+      value: status.value,
+      label: status.name,
+      color: status.name === 'Success' ? theme.palette.success.main : theme.palette.warning.main,
+    }));
+  }, [statusCounts, theme]);
+
+  const handleDeleteLogs = () => {
+    setIsLoading(true);
+    setTimeout(() => {
+      const filteredRows = rows.filter((row) => row.Status !== 'Success');
+      setRows(filteredRows);
+      setFilteredRows(filteredRows);
+      setSnackbar({
+        open: true,
+        message: 'Successfully cleared logs with status "Success"',
+        severity: 'success',
+      });
+      setDialogOpen(false);
+      setIsLoading(false);
+    }, 800);
+  };
+
+  const handleRetry = () => {
+    setIsLoading(true);
+    setTimeout(() => {
+      const updatedRows = rows.map((row) =>
+        row.id === selectedLog.id ? { ...row, Status: 'Success', Response: '{"message":"Retry successful"}' } : row
+      );
+      setRows(updatedRows);
+      setFilteredRows(updatedRows);
+      setSnackbar({
+        open: true,
+        message: 'Retry successful',
+        severity: 'success',
+      });
+      setDetailsDialog(false);
+      setIsLoading(false);
+    }, 1000);
+  };
+
+  const columns = useMemo(
+    () => [
+      { field: 'DocEntry', headerName: 'DOCENTRY', flex: 1 },
+      { field: 'CreateDate', headerName: 'DATE', flex: 1, sortable: true },
+      { field: 'ObjectType', headerName: 'TYPE', flex: 1 },
+      {
+        field: 'Status',
+        headerName: 'STATUS',
+        flex: 1,
+        renderCell: (params) => (
+          <StatusChip
+            label={params.value}
+            color={params.value === 'Success' ? 'success' : params.value === 'Pending' ? 'warning' : 'error'}
+            variant="outlined"
+            size="large"
+            sx={{
+              borderWidth: 1,
+              mb: 4,
+              color: params.value === 'Success' ? theme.palette.success.main : theme.palette.warning.main,
+              borderColor: params.value === 'Success' ? theme.palette.success.light : theme.palette.warning.light,
+            }}
+          />
+        ),
+      },
+      { field: 'CreatedBy', headerName: 'USER', flex: 1 },
+      {
+        field: 'Response',
+        headerName: 'ERRORMESSAGE',
+        flex: 1,
+        renderCell: (params) => {
+          let message = '';
+          try {
+            const parsed = JSON.parse(params.value);
+            message = parsed.message || parsed.error || '';
+          } catch (e) {
+            message = params.value || '';
+          }
+
+          return (
+            <Tooltip title={message} enterDelay={500}>
+              <Typography
+                variant="body2"
+                sx={{
+                  fontFamily: 'Roboto Mono, monospace',
+                  color: theme.palette.text.secondary,
+                  whiteSpace: 'normal',
+                  wordBreak: 'break-word',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  maxHeight: '4.5em',
+                }}
+              >
+                {message}
+              </Typography>
+            </Tooltip>
+          );
+        },
+      },
+      {
+        field: 'actions',
+        headerName: 'ACTIONS',
+        flex: 1,
+        sortable: false,
+        renderCell: (params) =>
+          params.row.Status === 'Pending' ? (
+            <Tooltip title="Retry">
+              <ActionButton
+                onClick={() => {
+                  setSelectedLog(params.row);
+                  setDetailsDialog(true);
+                }}
+                size="small"
+              >
+                <RetryIcon />
+              </ActionButton>
+            </Tooltip>
+          ) : null,
+      },
+    ],
+    [theme]
+  );
+
+  return (
+    <Box sx={{ display: 'flex', minHeight: '100vh', backgroundColor: '#F9FAFB' }}>
+      {/* Main Content */}
+      <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+        {/* Header */}
+        <StyledAppBar position="static">
+          <Toolbar>
+            <Typography
+              variant="h6"
+              noWrap
+              sx={{ flexGrow: 1, color: theme.palette.text.primary, fontWeight: 700, fontSize: '1.25rem', letterSpacing: '0.5px' }}
+            >
+              API Logs Dashboard
+            </Typography>
+            <SearchBar>
+              <SearchIconWrapper>
+                <SearchIcon />
+              </SearchIconWrapper>
+              <StyledInputBase
+                placeholder="Search logs..."
+                inputProps={{ 'aria-label': 'search' }}
+              />
+            </SearchBar>
+            <IconButton sx={{ mr: 1 }}>
+              <NotificationsIcon sx={{ color: theme.palette.text.secondary, fontSize: '1.5rem' }} />
+            </IconButton>
+            <Avatar alt="User" src="/path/to/avatar.jpg" sx={{ width: 36, height: 36, border: `1px solid ${theme.palette.grey[300]}` }} />
+          </Toolbar>
+        </StyledAppBar>
+
+        {/* Main Dashboard Content */}
+        <Box sx={{ p: { xs: 2, sm: 4 }, display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 2 }}>
+          {/* Left Side: Pie Chart and Summary */}
+          <Box sx={{ flex: 1, maxWidth: { md: '320px' } }}>
+            <StyledPaper sx={{ height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
+              <Typography
+                variant="h6"
+                sx={{ mb: 2, fontWeight: 700, color: theme.palette.text.primary, fontSize: '1.1rem', letterSpacing: '0.5px' }}
+              >
+                Status Overview
+              </Typography>
+              <PieChart
+                series={[
+                  {
+                    data: pieChartData,
+                    innerRadius: 50,
+                    outerRadius: 90,
+                    paddingAngle: 2,
+                    cornerRadius: 6,
+                    startAngle: -90,
+                    endAngle: 270,
+                    highlightScope: { faded: 'global', highlighted: 'item' },
+                    faded: { innerRadius: 30, additionalRadius: -30, color: theme.palette.grey[300] },
+                    arcLabel: (item) => `${item.value}`,
+                    arcLabelMinAngle: 20,
+                  },
+                ]}
+                width={260}
+                height={260}
+                slotProps={{
+                  legend: {
+                    direction: 'row',
+                    position: { vertical: 'bottom', horizontal: 'middle' },
+                    padding: 10,
+                    labelStyle: {
+                      fontSize: '0.8rem',
+                      fontWeight: 600,
+                      fill: theme.palette.text.secondary,
+                    },
+                  },
+                }}
+                sx={{
+                  '& .MuiChartsLegend-mark': {
+                    width: 14,
+                    height: 14,
+                    borderRadius: '3px',
+                  },
+                  '& .MuiPieArc-root': {
+                    transition: 'all 0.3s ease',
+                    '&:hover': {
+                      transform: 'scale(1.05)',
+                      filter: 'brightness(1.1)',
+                    },
+                  },
+                  '& .MuiPieArc-label': {
+                    fill: theme.palette.common.white,
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                  },
+                }}
+              />
+              <Box sx={{ mt: 1 }}>
+                <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 2 }}>
+                  Status Summary
+                </Typography>
+                <Stack spacing={1.5}>
+                  {statusCounts.map((status, index) => (
+                    <Stack
+                      key={index}
+                      direction="row"
+                      justifyContent="space-between"
+                      alignItems="center"
+                      sx={{
+                        p: 1.5,
+                        borderRadius: 2,
+                        bgcolor: theme.palette.grey[50],
+                        border: `1px solid ${theme.palette.grey[200]}`,
+                        transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                        '&:hover': {
+                          transform: 'translateY(-2px)',
+                          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)',
+                        },
+                      }}
+                    >
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        {status.name === 'Success' ? (
+                          <CheckCircleIcon sx={{ color: theme.palette.success.main, fontSize: '1.1rem' }} />
+                        ) : (
+                          <PendingIcon sx={{ color: theme.palette.warning.main, fontSize: '1.1rem' }} />
+                        )}
+                        <Typography variant="body2" fontWeight={500}>
+                          {status.name}
+                        </Typography>
+                      </Stack>
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <Typography variant="body2" fontWeight={600}>
+                          {status.value}
+                        </Typography>
+                        <Chip
+                          label={`${status.percentage}%`}
+                          size="small"
+                          sx={{
+                            bgcolor: status.name === 'Success' ? `${theme.palette.success.main}22` : `${theme.palette.warning.main}22`,
+                            color: status.name === 'Success' ? theme.palette.success.main : theme.palette.warning.main,
+                            fontWeight: 600,
+                            fontSize: '0.7rem',
+                            height: 24,
+                          }}
+                        />
+                      </Stack>
+                    </Stack>
+                  ))}
+                </Stack>
+              </Box>
+            </StyledPaper>
+          </Box>
+
+          {/* Right Side: Table */}
+          <Box sx={{ flex: 2 }}>
+            <StyledPaper>
+              <Stack spacing={0.5} mb={3}>
+                <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }}>
+                  <Typography variant="h6" fontWeight={700} sx={{ fontSize: '1.1rem', color: theme.palette.text.primary, letterSpacing: '0.5px' }}>
+                    API Logs
+                  </Typography>
+                  <Stack direction="row" spacing={1.5}>
+                    <Button
+                      variant="outlined"
+                      startIcon={<Refresh />}
+                      onClick={() => {
+                        setRows([...rows]);
+                        setFilteredRows([...rows]);
+                      }}
+                      sx={{
+                        fontSize: '0.8rem',
+                        fontWeight: 600,
+                        borderRadius: 6,
+                        px: 2.5,
+                        py: 0.75,
+                        borderColor: theme.palette.grey[300],
+                        color: theme.palette.text.primary,
+                        '&:hover': {
+                          borderColor: theme.palette.grey[400],
+                          background: theme.palette.grey[100],
+                          transform: 'translateY(-1px)',
+                        },
+                      }}
+                    >
+                      Refresh
+                    </Button>
+                    <Button
+                      variant="outlined"
+                      color="error"
+                      startIcon={<Delete />}
+                      onClick={() => setDialogOpen(true)}
+                      sx={{
+                        fontSize: '0.8rem',
+                        fontWeight: 600,
+                        borderRadius: 6,
+                        px: 2.5,
+                        py: 0.75,
+                        borderColor: theme.palette.error.light,
+                        color: theme.palette.error.main,
+                        '&:hover': {
+                          borderColor: theme.palette.error.main,
+                          background: theme.palette.error.light,
+                          transform: 'translateY(-1px)',
+                        },
+                      }}
+                    >
+                      Clear Success Records
+                    </Button>
+                  </Stack>
+                </Stack>
+              </Stack>
+
+              <Divider sx={{ mb: 2, borderColor: theme.palette.grey[200] }} />
+
+              <Box sx={{ height: { xs: 400, sm: 500 }, position: 'relative' }}>
+                {isLoading && (
+                  <LinearProgress
+                    sx={{
+                      position: 'absolute',
+                      width: '100%',
+                      borderRadius: theme.shape.borderRadius,
+                      backgroundColor: theme.palette.grey[200],
+                      '& .MuiLinearProgress-bar': {
+                        backgroundColor: theme.palette.primary.main,
+                      },
+                    }}
+                  />
+                )}
+                <StyledDataGrid
+                  rows={filteredRows}
+                  columns={columns}
+                  pageSizeOptions={[10, 25, 50]}
+                  slots={{ toolbar: CustomToolbar }}
+                  disableRowSelectionOnClick
+                  sx={{ borderRadius: 2 }}
+                />
+              </Box>
+            </StyledPaper>
+          </Box>
+        </Box>
+
+        {/* Snackbar for Feedback */}
+        <Snackbar
+          open={snackbar.open}
+          autoHideDuration={4000}
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        >
+          <Alert
+            severity={snackbar.severity}
+            variant="filled"
+            sx={{
+              borderRadius: 6,
+              fontWeight: 600,
+              fontSize: '0.875rem',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+              backgroundColor: snackbar.severity === 'success' ? theme.palette.success.main : theme.palette.error.main,
+              color: theme.palette.common.white,
+              transition: 'transform 0.2s ease',
+              '&:hover': {
+                transform: 'scale(1.02)',
+              },
+            }}
+          >
+            {snackbar.message}
+          </Alert>
+        </Snackbar>
+
+        {/* Delete Confirmation Dialog */}
+        <Dialog
+          open={dialogOpen}
+          onClose={() => setDialogOpen(false)}
+          PaperProps={{
+            sx: {
+              borderRadius: 1,
+              boxShadow: '0 4px 16px rgba(0, 0, 0, 0.1)',
+              p: 2,
+            },
+          }}
+        >
+          <DialogTitle sx={{ fontWeight: 700, fontSize: '1.1rem', color: theme.palette.text.primary, letterSpacing: '0.5px' }}>
+            Confirm Log Deletion
+          </DialogTitle>
+          <DialogContent>
+            <DialogContentText sx={{ color: theme.palette.text.secondary, fontSize: '0.875rem', fontWeight: 500, lineHeight: 1.6 }}>
+              Are you sure you want to delete all logs marked as "Success"? This action cannot be undone.
+            </DialogContentText>
+          </DialogContent>
+          <DialogActions sx={{ p: 2 }}>
+            <Button
+              onClick={() => setDialogOpen(false)}
+              sx={{
+                fontSize: '0.8rem',
+                fontWeight: 600,
+                borderRadius: 2,
+                px: 2.5,
+                color: theme.palette.text.secondary,
+                '&:hover': {
+                  background: theme.palette.grey[100],
+                  transform: 'translateY(-1px)',
+                },
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleDeleteLogs}
+              variant="contained"
+              color="error"
+              sx={{
+                fontSize: '0.8rem',
+                fontWeight: 600,
+                borderRadius: 6,
+                px: 2.5,
+                '&:hover': {
+                  background: theme.palette.error.dark,
+                  transform: 'translateY(-1px)',
+                  boxShadow: '0 4px 12px rgba(255, 59, 48, 0.2)',
+                },
+              }}
+            >
+              Delete
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* Pending Details Dialog */}
+        <Dialog
+          open={detailsDialog}
+          onClose={() => setDetailsDialog(false)}
+          maxWidth="md"
+          fullWidth
+          PaperProps={{
+            sx: {
+              borderRadius: 2,
+              boxShadow: '0 4px 16px rgba(0, 0, 0, 0.2)',
+              p: 2,
+              background: theme.palette.background.paper,
+            },
+          }}
+        >
+          <DialogTitle sx={{ fontWeight: 700, fontSize: '1.25rem', color: theme.palette.text.primary, letterSpacing: '0.5px', pb: 1 }}>
+            Retry Request
+          </DialogTitle>
+          {selectedLog && (
+            <DialogContent sx={{ p: 3 }}>
+              <Stack spacing={3}>
+                {/* Response Message Section */}
+                <Paper
+                  elevation={1}
+                  sx={{
+                    p: 2,
+                    borderRadius: 2,
+                    border: `1px solid ${theme.palette.grey[200]}`,
+                    background: theme.palette.grey[50],
+                    transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                    '&:hover': {
+                      transform: 'translateY(-2px)',
+                      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
+                    },
+                  }}
+                >
+                  <Typography variant="h6" sx={{ fontSize: '1rem', fontWeight: 600, color: theme.palette.error.main, mb: 1 }}>
+                    Response Message
+                  </Typography>
+                  <Typography
+                    variant="body1"
+                    sx={{
+                      color: theme.palette.text.primary,
+                      fontSize: '0.9rem',
+                      fontWeight: 500,
+                      lineHeight: 1.6,
+                      fontFamily: 'Roboto Mono, monospace',
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-word',
+                    }}
+                  >
+                    {JSON.parse(selectedLog.Response).error || JSON.parse(selectedLog.Response).message || selectedLog.Response}
+                  </Typography>
+                </Paper>
+
+                {/* API Endpoint Section */}
+                <Paper
+                  elevation={1}
+                  sx={{
+                    p: 2,
+                    borderRadius: 2,
+                    border: `1px solid ${theme.palette.grey[200]}`,
+                    background: theme.palette.grey[50],
+                    transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                    '&:hover': {
+                      transform: 'translateY(-2px)',
+                      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
+                    },
+                  }}
+                >
+                  <Typography variant="h6" sx={{ fontSize: '1rem', fontWeight: 600, color: theme.palette.primary.main, mb: 1 }}>
+                    API Endpoint
+                  </Typography>
+                  <Typography
+                    variant="body1"
+                    sx={{
+                      color: theme.palette.text.primary,
+                      fontSize: '0.9rem',
+                      fontWeight: 500,
+                      lineHeight: 1.6,
+                      fontFamily: 'Roboto Mono, monospace',
+                    }}
+                  >
+                    {selectedLog.ApiEndpoint || 'https://api.example.com/default'}
+                  </Typography>
+                </Paper>
+
+                {/* Payload Section */}
+                <Paper
+                  elevation={1}
+                  sx={{
+                    p: 2,
+                    borderRadius: 2,
+                    border: `1px solid ${theme.palette.grey[200]}`,
+                    background: theme.palette.grey[50],
+                    transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                    '&:hover': {
+                      transform: 'translateY(-2px)',
+                      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
+                    },
+                    maxHeight: 300,
+                    overflow: 'auto',
+                  }}
+                >
+                  <Typography variant="h6" sx={{ fontSize: '1rem', fontWeight: 600, color: theme.palette.warning.main, mb: 1 }}>
+                    Payload
+                  </Typography>
+                  <Typography
+                    variant="body1"
+                    sx={{
+                      color: theme.palette.text.primary,
+                      fontSize: '0.9rem',
+                      fontWeight: 500,
+                      lineHeight: 1.6,
+                      fontFamily: 'Roboto Mono, monospace',
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-word',
+                    }}
+                  >
+                    {selectedLog.Payload || '{}'}
+                  </Typography>
+                </Paper>
+              </Stack>
+            </DialogContent>
+          )}
+          <DialogActions sx={{ p: 2, pt: 1 }}>
+            <Button
+              onClick={() => setDetailsDialog(false)}
+              sx={{
+                fontSize: '0.875rem',
+                fontWeight: 600,
+                borderRadius: 3,
+                px: 3,
+                py: 0.75,
+                color: theme.palette.text.secondary,
+                border: `1px solid ${theme.palette.grey[300]}`,
+                '&:hover': {
+                  background: theme.palette.grey[100],
+                  transform: 'translateY(-1px)',
+                  borderColor: theme.palette.grey[400],
+                },
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleRetry}
+              variant="contained"
+              color="primary"
+              sx={{
+                fontSize: '0.875rem',
+                fontWeight: 600,
+                borderRadius: 3,
+                px: 3,
+                py: 0.75,
+                '&:hover': {
+                  background: theme.palette.primary.dark,
+                  transform: 'translateY(-1px)',
+                  boxShadow: '0 4px 12px rgba(25, 118, 210, 0.3)',
+                },
+              }}
+            >
+              Retry Request
+            </Button>
+          </DialogActions>
+        </Dialog>
+      </Box>
+    </Box>
+  );
+};
+
+export default ApiLogsDashboard;
